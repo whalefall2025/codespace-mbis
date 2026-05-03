@@ -1,0 +1,37 @@
+# UI & Dashboards
+streamlit
+dash
+gradio
+
+# APIs & Backends
+fastapi
+flask
+uvicorn
+sqlalchemy
+python-dotenv
+
+# Data Handling
+pandas
+requests
+numpy
+plotly
+matplotlib
+seaborn
+pydantic
+pydantic-settings
+aiosqlite
+
+# AI & LLM Integration
+openai
+anthropic
+google-genai
+
+# Web Scraping
+
+beautifulsoup4
+httpx
+
+# LSP & Testing
+pyright
+pytest
+pytest-asyncio

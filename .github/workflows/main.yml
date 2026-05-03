@@ -1,0 +1,25 @@
+name: Smoke
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Validate devcontainer JSON
+        run: jq empty .devcontainer/devcontainer.json
+
+      - name: Validate shell scripts
+        run: |
+          bash -n .devcontainer/setup.sh
+          bash -n opt/mbis/bin/mbis
+          bash -n opt/mbis/bin/smoke-test-tools
+
+      - name: Check mbis help
+        run: bash opt/mbis/bin/mbis help >/dev/null

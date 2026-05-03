@@ -1,0 +1,1316 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+AGENTSVIEW_PORT=2223
+NODE_REACT_PORT=3000
+PYTHON_PORT=5000
+FASTAPI_PORT=8000
+WEB_PORT=8080
+STREAMLIT_PORT=8501
+
+die() {
+    echo "Error: $*" >&2
+    exit 1
+}
+
+has_command() {
+    command -v "$1" >/dev/null 2>&1
+}
+
+workspace_root() {
+    if git rev-parse --show-toplevel >/dev/null 2>&1; then
+        git rev-parse --show-toplevel
+    else
+        pwd
+    fi
+}
+
+show_preview() {
+    local port=$1
+    echo "Starting app on http://127.0.0.1:${port}"
+    if [[ "${CODESPACES:-}" == "true" ]]; then
+        echo "Codespaces should forward port ${port} automatically."
+    fi
+}
+
+prompt_yes_no() {
+    local prompt=$1
+    local reply
+    read -r -p "${prompt} [y/N] " reply
+    [[ "${reply,,}" =~ ^(y|yes)$ ]]
+}
+
+append_unique_line() {
+    local file=$1
+    local line=$2
+    if ! grep -Fqx "$line" "$file" 2>/dev/null; then
+        printf "%s\n" "$line" >> "$file"
+    fi
+}
+
+help_style() {
+    if [[ -t 1 && -z "${NO_COLOR:-}" ]]; then
+        H_BOLD=$'\033[1m'
+        H_DIM=$'\033[2m'
+        H_GREEN=$'\033[32m'
+        H_CYAN=$'\033[36m'
+        H_RESET=$'\033[0m'
+    else
+        H_BOLD=""
+        H_DIM=""
+        H_GREEN=""
+        H_CYAN=""
+        H_RESET=""
+    fi
+}
+
+help_title() {
+    printf "%b%s%b\n" "$H_BOLD" "$1" "$H_RESET"
+}
+
+help_section() {
+    printf "\n%b%s%b\n" "$H_BOLD" "$1" "$H_RESET"
+}
+
+help_row() {
+    local command=$1
+    local description=$2
+    printf "  %b%-24s%b %s\n" "$H_CYAN" "$command" "$H_RESET" "$description"
+}
+
+help_step() {
+    local number=$1
+    local command=$2
+    local description=$3
+    printf "  %b%s%b  %b%-26s%b %s\n" \
+        "$H_GREEN" "$number" "$H_RESET" "$H_CYAN" "$command" "$H_RESET" "$description"
+}
+
+help_footer() {
+    [[ "${H_SUPPRESS_FOOTER:-}" == "1" ]] && return 0
+    printf "\n%bMore help:%b mbis help terminal | agents | run | git | all\n" "$H_DIM" "$H_RESET"
+    printf "%bRead README.md in your workspace home for detailed course guidance.%b\n" "$H_DIM" "$H_RESET"
+}
+
+print_help_overview() {
+    help_title "MBIS601 Codespace Help"
+    printf "%bA quick guide for getting started in this course Codespace.%b\n" "$H_DIM" "$H_RESET"
+
+    help_section "Start here"
+    help_step "1" "mbis newproject my-app" "create a project and copy agent templates"
+    help_step "2" "pwd" "confirm you are inside your project folder"
+    help_step "3" "gemini" "or launch copilot, opencode, codex, claude, pi"
+
+    help_section "MBIS commands"
+    help_row "mbis newproject [name]" "create a new project folder"
+    help_row "mbis home" "jump back to the workspace home"
+    help_row "mbis save" "save and upload your work to GitHub"
+    help_row "mbis sync" "pull newer work from GitHub"
+    help_row "mbis run [type] [file]" "run a Python, Node, PHP, or web app"
+    help_row "mbis doctor" "check your setup"
+    help_row "mbis stop" "stop the Codespace when finished"
+
+    help_section "Terminal essentials"
+    help_row "pwd" "show where you are"
+    help_row "ls" "list files; use ls -la for details"
+    help_row "cd [folder]" "move into a folder; cd .. goes up"
+    help_row "mkdir [folder]" "create a folder"
+    help_row "rm [file]" "remove a file; rm -r [folder] removes a folder"
+    help_row "Ctrl+C" "cancel a running command"
+
+    help_section "Stuck?"
+    printf "  Copy-paste the command or error into an AI and ask what to do.\n"
+    printf "  Claude Haiku 4.5 is available free at https://duck.ai\n"
+
+    help_footer
+}
+
+print_help_terminal() {
+    help_title "Terminal Basics"
+    printf "%bSmall commands you will use often.%b\n" "$H_DIM" "$H_RESET"
+
+    help_section "Navigation"
+    help_row "pwd" "print working directory; shows the current path"
+    help_row "ls" "list directory contents"
+    help_row "ls -la" "show hidden files and detailed information"
+    help_row "cd [folder]" "change directory"
+    help_row "cd .." "go up one level"
+    help_row "mbis home" "return to your workspace home"
+
+    help_section "Files and folders"
+    help_row "mkdir [folder]" "create a new directory"
+    help_row "rm [file]" "remove a file"
+    help_row "rm -r [folder]" "remove a directory"
+    help_row "cp [from] [to]" "copy files or directories"
+    help_row "mv [from] [to]" "move or rename files and directories"
+
+    help_section "Control"
+    help_row "Ctrl+C" "cancel a running command"
+    help_row "Up/Down arrows" "move through commands you have run before"
+
+    help_section "Stuck?"
+    printf "  Copy-paste an unknown command or error message into an AI.\n"
+    printf "  Ask: \"What does this mean, and what should I do?\"\n"
+    printf "  Claude Haiku 4.5 is available free at https://duck.ai\n"
+
+    help_footer
+}
+
+print_help_agents() {
+    help_title "Agentic Coding Tools"
+    printf "%bUse these from inside your project directory.%b\n" "$H_DIM" "$H_RESET"
+
+    help_section "First-time setup"
+    help_step "1" "mbis newproject my-app" "create your project folder"
+    help_step "2" "pwd" "check that your prompt is inside that project"
+    help_step "3" "gemini" "or run another agent tool below"
+
+    help_section "Tools"
+    help_row "copilot" "GitHub Copilot coding agent"
+    help_row "gemini" "Google Gemini CLI"
+    help_row "opencode" "OpenCode"
+    help_row "claude" "Claude Code"
+    help_row "codex" "OpenAI Codex"
+    help_row "pi" "Pi coding agent"
+
+    help_section "Authentication"
+    printf "  Complete sign-in or store API keys before using the tools:\n"
+    printf "  https://github.com/settings/codespaces\n"
+
+    help_footer
+}
+
+print_help_run() {
+    help_title "Running Apps And Preview Ports"
+    printf "%bRun apps locally, then open them from the Codespaces Ports tab.%b\n" "$H_DIM" "$H_RESET"
+
+    help_section "Run commands"
+    help_row "mbis run" "detect and run a common app entry point"
+    help_row "mbis run python app.py" "run a Python app"
+    help_row "mbis run node server.js" "run a Node app"
+    help_row "mbis run php public" "run a PHP app"
+
+    help_section "Default ports"
+    help_row "2223" "AgentsView dashboard"
+    help_row "3000" "Node or React apps"
+    help_row "5000" "Python Flask apps"
+    help_row "8000" "FastAPI apps"
+    help_row "8080" "general HTML/CSS/JS web apps"
+    help_row "8501" "Streamlit apps"
+
+    help_section "Previewing"
+    printf "  Your agent may choose a different port; check its messages.\n"
+    printf "  In Codespaces, open the Ports tab, find the port, then click\n"
+    printf "  Open in Browser.\n"
+
+    help_footer
+}
+
+print_help_git() {
+    help_title "Saving And Syncing Work"
+    printf "%bUse these MBIS helpers for the beginner Git workflow.%b\n" "$H_DIM" "$H_RESET"
+
+    help_section "Commands"
+    help_row "mbis save" "save your latest work and upload it to GitHub"
+    help_row "mbis sync" "pull updates from GitHub to this workspace"
+
+    help_section "When to use them"
+    printf "  Run mbis save before taking a break or stopping the Codespace.\n"
+    printf "  Run mbis sync when you need newer work from your GitHub repo.\n"
+    printf "  If Git reports a conflict, copy-paste the message into an AI\n"
+    printf "  and ask what it means before choosing what to keep.\n"
+
+    help_footer
+}
+
+print_help_all() {
+    H_SUPPRESS_FOOTER=1
+    print_help_overview
+    printf "\n"
+    print_help_terminal
+    printf "\n"
+    print_help_agents
+    printf "\n"
+    print_help_run
+    printf "\n"
+    print_help_git
+    H_SUPPRESS_FOOTER=0
+    help_footer
+}
+
+print_help_topics() {
+    printf "Available help topics: terminal, agents, run, git, all\n" >&2
+}
+
+print_help() {
+    local topic=${1:-overview}
+    help_style
+
+    case "$topic" in
+        overview)
+            print_help_overview
+            ;;
+        terminal)
+            print_help_terminal
+            ;;
+        agents)
+            print_help_agents
+            ;;
+        run)
+            print_help_run
+            ;;
+        git)
+            print_help_git
+            ;;
+        all)
+            print_help_all
+            ;;
+        *)
+            printf "Unknown help topic: %s\n" "$topic" >&2
+            print_help_topics
+            return 1
+            ;;
+    esac
+}
+
+course_workspace_root() {
+    if [[ -n "${CODESPACE_VSCODE_FOLDER:-}" && -d "${CODESPACE_VSCODE_FOLDER}" ]]; then
+        echo "${CODESPACE_VSCODE_FOLDER}"
+        return 0
+    fi
+    if [[ -n "${GITHUB_WORKSPACE:-}" && -d "${GITHUB_WORKSPACE}" ]]; then
+        echo "${GITHUB_WORKSPACE}"
+        return 0
+    fi
+    if [[ -n "${LOCAL_WORKSPACE_FOLDER:-}" && -d "${LOCAL_WORKSPACE_FOLDER}" ]]; then
+        echo "${LOCAL_WORKSPACE_FOLDER}"
+        return 0
+    fi
+    if [[ -n "${RepositoryName:-}" && -d "/workspaces/${RepositoryName}" ]]; then
+        echo "/workspaces/${RepositoryName}"
+        return 0
+    fi
+
+    local root
+    root=$(workspace_root)
+    if [[ -d "$root/agents-md-templates" ]]; then
+        echo "$root"
+        return 0
+    fi
+
+    die "Could not find the course workspace folder."
+}
+
+is_safe_project_name() {
+    local name=$1
+    [[ "$name" =~ ^[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?$ ]]
+}
+
+project_name_has_space() {
+    local name=$1
+    [[ "$name" =~ [[:space:]] ]]
+}
+
+is_exit_reply() {
+    case "$1" in
+        [Qq]|[Qq][Uu][Ii][Tt]|[Ee][Xx][Ii][Tt])
+            return 0
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+}
+
+suggest_project_name() {
+    local name=$1
+    name=$(printf "%s" "$name" | tr '[:space:]' '-' | tr -cs 'A-Za-z0-9-' '-')
+    name="${name##-}"
+    name="${name%%-}"
+    printf "%s" "$name"
+}
+
+prompt_for_safe_project_name() {
+    local name=$1
+    local suggestion reply
+
+    while ! is_safe_project_name "$name"; do
+        echo "Project folder names can only use letters, numbers, and hyphens." >&2
+        echo "They must start and end with a letter or number." >&2
+
+        if project_name_has_space "$name"; then
+            suggestion=$(suggest_project_name "$name")
+            if [[ -n "$suggestion" && "$suggestion" != "$name" ]]; then
+                echo "Spaces are not allowed in project folder names." >&2
+                echo "Suggested name: $suggestion" >&2
+                read -r -p "Press Enter to use this name, type a different name, or type 'q' to exit: " reply || return 1
+                if [[ -z "$reply" ]]; then
+                    name=$suggestion
+                elif is_exit_reply "$reply"; then
+                    echo "No project created." >&2
+                    return 2
+                else
+                    name=$reply
+                fi
+                continue
+            fi
+        fi
+
+        read -r -p "Type a safe project name, or type 'q' to exit: " reply || return 1
+        if is_exit_reply "$reply"; then
+            echo "No project created." >&2
+            return 2
+        fi
+        name=$reply
+    done
+
+    printf "%s\n" "$name"
+}
+
+cmd_newproject() {
+    if [[ "$#" -eq 0 ]]; then
+        cat >&2 <<'EOF'
+Usage:
+  mbis newproject [name-of-project]
+
+Project names can only use letters, numbers, and hyphens.
+EOF
+        return 1
+    fi
+
+    local raw_name project_name workspace_dir templates_dir project_dir project_path
+    local template template_name copied_names=()
+    local prompt_status
+
+    raw_name="$*"
+
+    if project_name_has_space "$raw_name" || ! is_safe_project_name "$raw_name"; then
+        if project_name=$(prompt_for_safe_project_name "$raw_name"); then
+            prompt_status=0
+        else
+            prompt_status=$?
+        fi
+        if (( prompt_status == 2 )); then
+            return 0
+        fi
+        if (( prompt_status != 0 )); then
+            return "$prompt_status"
+        fi
+        if [[ -z "$project_name" ]]; then
+            return 0
+        fi
+    else
+        project_name=$raw_name
+    fi
+
+    workspace_dir=$(course_workspace_root)
+    templates_dir="$workspace_dir/agents-md-templates"
+    [[ -d "$templates_dir" ]] || die "Could not find agent templates at $templates_dir."
+
+    project_dir="$workspace_dir/$project_name"
+
+    if [[ -e "$project_dir" ]]; then
+        echo "A project folder named '$project_name' already exists."
+        echo "No files were copied."
+        return 0
+    fi
+
+    mkdir -p "$project_dir"
+
+    shopt -s nullglob
+    for template in "$templates_dir"/*; do
+        [[ -f "$template" ]] || continue
+        template_name=$(basename "$template")
+        [[ "$template_name" == ".DS_Store" || "$template_name" == "README.md" ]] && continue
+        cp "$template" "$project_dir/"
+        copied_names+=("$template_name")
+    done
+    shopt -u nullglob
+
+    project_path=$(cd "$project_dir" && pwd -P)
+
+    echo "Created project folder: $project_name"
+    if (( ${#copied_names[@]} > 0 )); then
+        printf "Copied template files: %s\n" "${copied_names[*]}"
+    else
+        echo "Copied template files: none found"
+    fi
+    echo "Project path: $project_path"
+
+    if [[ -n "${MBIS_NEWPROJECT_PATH_FILE:-}" ]]; then
+        printf "%s\n" "$project_path" > "$MBIS_NEWPROJECT_PATH_FILE"
+    fi
+}
+
+cmd_run_python() {
+    local target=${1:-}
+    export FLASK_RUN_HOST=127.0.0.1
+    export FLASK_RUN_PORT=$PYTHON_PORT
+    export HOST=127.0.0.1
+    export PORT=$PYTHON_PORT
+    export UV_CACHE_DIR=${UV_CACHE_DIR:-/tmp/uv-cache}
+
+    if [[ -z "$target" ]]; then
+        for candidate in manage.py app.py main.py server.py; do
+            if [[ -f "$candidate" ]]; then
+                target=$candidate
+                break
+            fi
+        done
+    fi
+
+    [[ -n "$target" ]] || die "Could not find a Python entry point. Try \`mbis run python app.py\`."
+
+    show_preview "$PYTHON_PORT"
+    if [[ "$target" == "manage.py" ]]; then
+        exec uv run python manage.py runserver 127.0.0.1:${PYTHON_PORT}
+    fi
+    exec uv run python "$target"
+}
+
+cmd_run_node() {
+    local target=${1:-}
+    export HOST=127.0.0.1
+    export PORT=$WEB_PORT
+
+    if [[ -z "$target" && -f package.json ]]; then
+        if jq -e '.scripts.dev' package.json >/dev/null 2>&1; then
+            show_preview "$WEB_PORT"
+            echo "Running npm run dev with PORT=${WEB_PORT}."
+            exec npm run dev
+        fi
+        if jq -e '.scripts.start' package.json >/dev/null 2>&1; then
+            show_preview "$WEB_PORT"
+            echo "Running npm start with PORT=${WEB_PORT}."
+            exec npm start
+        fi
+    fi
+
+    if [[ -z "$target" ]]; then
+        for candidate in server.js app.js index.js server.mjs app.mjs index.mjs; do
+            if [[ -f "$candidate" ]]; then
+                target=$candidate
+                break
+            fi
+        done
+    fi
+
+    if [[ -n "$target" ]]; then
+        show_preview "$WEB_PORT"
+        exec node "$target"
+    fi
+
+    if [[ -f index.html ]]; then
+        show_preview "$WEB_PORT"
+        exec python3 -m http.server "$WEB_PORT" --bind 127.0.0.1
+    fi
+
+    die "Could not find a Node entry point. Try \`mbis run node server.js\`."
+}
+
+cmd_run_php() {
+    local target=${1:-.}
+    if [[ -f "$target" ]]; then
+        target=$(dirname "$target")
+    fi
+    show_preview "$WEB_PORT"
+    exec php -S 127.0.0.1:${WEB_PORT} -t "$target"
+}
+
+cmd_run() {
+    local mode=${1:-auto}
+    local target=${2:-}
+
+    case "$mode" in
+        auto)
+            if [[ -f package.json ]]; then
+                cmd_run_node "$target"
+            elif [[ -f manage.py || -f app.py || -f main.py || -f server.py ]]; then
+                cmd_run_python "$target"
+            elif [[ -f index.html ]]; then
+                cmd_run_node "$target"
+            elif [[ -f index.php || -d public ]]; then
+                cmd_run_php "${target:-.}"
+            else
+                die "Could not detect a project type. Try \`mbis run python\`, \`mbis run node\`, or \`mbis run php\`."
+            fi
+            ;;
+        python)
+            cmd_run_python "$target"
+            ;;
+        node)
+            cmd_run_node "$target"
+            ;;
+        php)
+            cmd_run_php "$target"
+            ;;
+        --help|-h)
+            print_help run
+            ;;
+        *)
+            die "Unknown runtime: $mode"
+            ;;
+    esac
+}
+
+cmd_sync() {
+    git rev-parse --is-inside-work-tree >/dev/null 2>&1 || die "mbis sync must be run inside a Git repository."
+
+    local branch
+    branch=$(git branch --show-current 2>/dev/null || true)
+    [[ -n "$branch" ]] || die "mbis sync needs a normal branch. This repository appears to be detached."
+
+    git remote get-url origin >/dev/null 2>&1 || die "No GitHub remote named origin was found."
+
+    echo "Checking GitHub for newer work..."
+    git fetch --prune origin
+
+    local upstream
+    upstream=$(git rev-parse --abbrev-ref --symbolic-full-name '@{u}' 2>/dev/null || true)
+    if [[ -z "$upstream" ]] && git rev-parse --verify --quiet "refs/remotes/origin/${branch}" >/dev/null; then
+        git branch --set-upstream-to="origin/${branch}" "$branch" >/dev/null 2>&1 || true
+        upstream="origin/${branch}"
+    fi
+
+    [[ -n "$upstream" ]] || die "No matching branch was found on GitHub. If this is new work, run \`mbis save\` first."
+
+    echo "Pulling from ${upstream}..."
+    if git pull --rebase --autostash; then
+        echo "Sync complete."
+        return 0
+    fi
+
+    echo >&2
+    echo "Sync stopped because Git needs your help to resolve a conflict." >&2
+    echo "Open the conflicted files, fix the conflict markers, then run:" >&2
+    echo "  git add <files>" >&2
+    echo "  git rebase --continue" >&2
+    echo "To cancel this sync attempt, run:" >&2
+    echo "  git rebase --abort" >&2
+    return 1
+}
+
+cmd_home() {
+        cd "$GITHUB_WORKSPACE" || cd /workspaces/$(ls /workspaces | head -1)
+}
+
+# cmd_save() {
+
+#     # Sync AgentsView state
+#     agentsview sync || true 
+
+#     git rev-parse --is-inside-work-tree >/dev/null 2>&1 || die "mbis save must be run inside a Git repository."
+
+#     if [[ -z "$(git status --short)" ]]; then
+#         echo "Nothing to save."
+#         return 0
+#     fi
+
+#     git add -A
+
+#     if [[ -z "$(git status --short)" ]]; then
+#         echo "Nothing to save."
+#         return 0
+#     fi
+
+#     local message
+#     message="mbis save $(date -u +"%Y-%m-%d %H:%M UTC")"
+#     git commit -m "$message"
+
+#     local branch
+#     branch=$(git branch --show-current 2>/dev/null || true)
+#     if git rev-parse --abbrev-ref --symbolic-full-name '@{u}' >/dev/null 2>&1; then
+#         git push
+#     elif [[ -n "$branch" ]]; then
+#         git push -u origin "$branch"
+#     else
+#         git push
+#     fi
+
+#     echo "Saved to GitHub repository."
+# }
+
+cmd_save() {
+    local remote="origin"
+    local branch tracking configured_remote configured_merge configured_branch
+    local remote_ref counts
+    local behind=0
+    local ahead=0
+    local remote_branch_exists=0
+    local made_commit=0
+    local changed_count=0
+    local message head_short repo_root agentsview_export_script
+
+    # Must be inside a Git repository.
+    if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+        cat >&2 <<'EOF'
+mbis save needs to be run from inside a project folder that uses Git.
+
+Try opening the project folder first, then run:
+  mbis save
+EOF
+        return 1
+    fi
+
+    # Refuse to run during an unfinished Git operation.
+    local merge_head rebase_merge rebase_apply cherry_pick_head revert_head sequencer bisect_log index_lock
+    merge_head="$(git rev-parse --git-path MERGE_HEAD)"
+    rebase_merge="$(git rev-parse --git-path rebase-merge)"
+    rebase_apply="$(git rev-parse --git-path rebase-apply)"
+    cherry_pick_head="$(git rev-parse --git-path CHERRY_PICK_HEAD)"
+    revert_head="$(git rev-parse --git-path REVERT_HEAD)"
+    sequencer="$(git rev-parse --git-path sequencer)"
+    bisect_log="$(git rev-parse --git-path BISECT_LOG)"
+    index_lock="$(git rev-parse --git-path index.lock)"
+
+    if [[ -e "$index_lock" ]]; then
+        cat >&2 <<'EOF'
+mbis save stopped because Git appears to be busy.
+
+Close any other Git commands or Git apps that might be running, then try:
+  mbis save
+EOF
+        return 1
+    fi
+
+    if [[ -e "$merge_head" || -d "$rebase_merge" || -d "$rebase_apply" ||
+          -e "$cherry_pick_head" || -e "$revert_head" || -d "$sequencer" ||
+          -e "$bisect_log" ]]; then
+        cat >&2 <<'EOF'
+mbis save stopped because another Git operation is already in progress.
+
+Your files were not changed by mbis save.
+
+Finish or cancel the current Git operation first. Useful commands:
+  git status
+  git rebase --continue
+  git rebase --abort
+  git merge --abort
+EOF
+        return 1
+    fi
+
+    if [[ -n "$(git diff --name-only --diff-filter=U)" ]]; then
+        cat >&2 <<'EOF'
+mbis save stopped because some files still have unresolved conflicts.
+
+Open the conflicted files, choose the final version you want to keep, then run:
+  git add -A
+  mbis save
+EOF
+        return 1
+    fi
+
+    # Must be on a named branch.
+    branch="$(git branch --show-current 2>/dev/null || true)"
+    if [[ -z "$branch" ]]; then
+        cat >&2 <<'EOF'
+mbis save stopped because this project is not currently on a branch.
+
+A safe beginner-friendly fix is to create a branch:
+  git switch -c my-branch
+
+Then run:
+  mbis save
+EOF
+        return 1
+    fi
+
+    # Make sure the remote exists before doing anything that creates a commit.
+    if ! git remote get-url "$remote" >/dev/null 2>&1; then
+        cat >&2 <<EOF
+mbis save could not find a GitHub remote named '$remote'.
+
+Add the GitHub repository first, for example:
+  git remote add origin <repo-url>
+
+No commit was created.
+EOF
+        return 1
+    fi
+
+    printf 'Step 1/4: Checking GitHub for updates...\n'
+
+    if ! git fetch "$remote" --prune; then
+        cat >&2 <<'EOF'
+mbis save could not reach GitHub.
+
+Check your internet connection, GitHub sign-in, and repository access.
+
+No commit was created.
+EOF
+        return 1
+    fi
+
+    # Sync AgentsView state after the basic Git checks and successful fetch.
+    # This keeps "could not reach GitHub" from creating extra local changes.
+    printf 'Exporting AgentsView database...\n'
+
+    repo_root="$(git rev-parse --show-toplevel)"
+    agentsview_export_script="$repo_root/agentsview_export/export_agentsview.sh"
+
+    if [[ ! -x "$agentsview_export_script" ]]; then
+        cat >&2 <<EOF
+mbis save could not export the AgentsView database.
+
+Expected an executable script here:
+  $agentsview_export_script
+
+Make it executable, then try again:
+  chmod +x "$agentsview_export_script"
+  mbis save
+
+No commit was created.
+EOF
+        return 1
+    fi
+
+    if ! "$agentsview_export_script"; then
+        cat >&2 <<EOF
+mbis save could not export the AgentsView database.
+
+The GitHub save was stopped so it does not upload an old or missing database export.
+
+Check the export message above, then try:
+  mbis save
+
+No commit was created.
+EOF
+        return 1
+    fi
+
+    printf 'Step 2/4: Looking for local file changes...\n'
+
+    changed_count="$(git status --porcelain=v1 --untracked-files=all | wc -l | tr -d '[:space:]')"
+
+    if (( changed_count > 0 )); then
+        printf 'Found %d changed file(s). Creating a local save point...\n' "$changed_count"
+
+        if ! git var GIT_AUTHOR_IDENT >/dev/null 2>&1; then
+            cat >&2 <<'EOF'
+mbis save could not create a save point because Git does not know your name and email yet.
+
+Set them once with:
+
+  git config --global user.name "Your Name"
+  git config --global user.email "you@example.com"
+
+Then run:
+  mbis save
+
+No commit was created.
+EOF
+            return 1
+        fi
+
+        if ! git add -A; then
+            cat >&2 <<'EOF'
+mbis save could not prepare your changed files.
+
+Your files were not deleted. Check the Git message above, then try:
+  mbis save
+EOF
+            return 1
+        fi
+
+        if git diff --cached --quiet; then
+            if [[ -n "$(git status --porcelain=v1 --untracked-files=all)" ]]; then
+                cat >&2 <<'EOF'
+mbis save found changes, but they are not normal file changes that this command can save.
+
+This can happen with advanced Git features such as submodules.
+
+Current Git status:
+EOF
+                git status --short >&2
+                return 1
+            fi
+
+            printf 'No file changes to save.\n'
+        else
+            message="mbis save $(date -u +"%Y-%m-%d %H:%M UTC")"
+
+            if ! git commit -m "$message"; then
+                cat >&2 <<'EOF'
+mbis save could not create the local save point.
+
+Common causes:
+  - Git user.name or user.email is missing
+  - a pre-commit check failed
+  - a file could not be added
+
+Check the Git message above. Your files were not deleted.
+EOF
+                return 1
+            fi
+
+            made_commit=1
+
+            if [[ -n "$(git status --porcelain=v1 --untracked-files=all)" ]]; then
+                cat >&2 <<'EOF'
+mbis save created a local save point, but some file changes are still not saved.
+
+This can happen when a Git hook edits files during commit.
+
+Run this again to save the remaining changes:
+  mbis save
+EOF
+                git status --short >&2
+                return 1
+            fi
+        fi
+    else
+        printf 'No local file changes to save.\n'
+    fi
+
+    # If this repository has no commits yet and there was nothing to commit, stop cleanly.
+    if ! git rev-parse --verify HEAD >/dev/null 2>&1; then
+        cat <<'EOF'
+Nothing to save yet.
+
+Create or add a file, then run:
+  mbis save
+EOF
+        return 0
+    fi
+
+    # Use only origin/current-branch for beginner predictability.
+    # If the branch tracks something else, stop instead of pushing somewhere surprising.
+    tracking="$(git rev-parse --abbrev-ref --symbolic-full-name '@{u}' 2>/dev/null || true)"
+
+    if git show-ref --verify --quiet "refs/remotes/$remote/$branch"; then
+        remote_ref="$remote/$branch"
+        remote_branch_exists=1
+    fi
+
+    if [[ -n "$tracking" && "$tracking" != "$remote/$branch" ]]; then
+        cat >&2 <<EOF
+mbis save stopped because this branch is connected to '$tracking',
+but mbis save expects it to save to '$remote/$branch'.
+
+This is unusual for a beginner workflow, so mbis save will not guess where to push.
+
+Ask for help, or inspect it with:
+  git status
+  git branch -vv
+EOF
+        return 1
+    fi
+
+    configured_remote="$(git config --get "branch.$branch.remote" || true)"
+    configured_merge="$(git config --get "branch.$branch.merge" || true)"
+    configured_branch="${configured_merge#refs/heads/}"
+
+    if [[ -z "$tracking" &&
+          "$configured_remote" == "$remote" &&
+          "$configured_branch" == "$branch" &&
+          "$remote_branch_exists" -eq 0 ]]; then
+        cat >&2 <<EOF
+mbis save stopped because this branch used to be connected to '$remote/$branch',
+but that branch no longer exists on GitHub.
+
+To avoid accidentally re-creating a branch that someone deleted, mbis save stopped.
+
+Ask for help, or check:
+  git status
+  git branch -vv
+EOF
+        return 1
+    fi
+
+    printf 'Step 3/4: Making sure your work is based on the latest GitHub version...\n'
+
+    if (( remote_branch_exists == 1 )); then
+        if ! counts="$(git rev-list --left-right --count "$remote_ref"...HEAD)"; then
+            cat >&2 <<EOF
+mbis save could not compare your work with GitHub branch '$remote_ref'.
+
+Check:
+  git status
+EOF
+            return 1
+        fi
+
+        read -r behind ahead <<<"$counts"
+
+        if (( behind > 0 )); then
+            printf 'GitHub has %d newer commit(s). Updating your work safely...\n' "$behind"
+
+            if ! git rebase "$remote_ref"; then
+                local conflict_count
+                conflict_count="$(git diff --name-only --diff-filter=U | wc -l | tr -d '[:space:]')"
+
+                cat >&2 <<'EOF'
+mbis save stopped because Git needs your help combining changes.
+
+Your local save point still exists on your computer.
+Nothing was uploaded to GitHub yet.
+
+What to do next:
+  1. Open the conflicted files and choose the final text you want.
+  2. Mark them fixed:
+       git add -A
+  3. Continue the update:
+       git rebase --continue
+  4. Save again:
+       mbis save
+
+To cancel this update and go back:
+  git rebase --abort
+EOF
+
+                if (( conflict_count > 0 )); then
+                    printf '\nFiles needing your choice:\n' >&2
+                    git diff --name-only --diff-filter=U >&2
+                fi
+
+                return 1
+            fi
+
+            if ! counts="$(git rev-list --left-right --count "$remote_ref"...HEAD)"; then
+                cat >&2 <<'EOF'
+mbis save updated your branch, but could not re-check it afterward.
+
+Check:
+  git status
+EOF
+                return 1
+            fi
+
+            read -r behind ahead <<<"$counts"
+        else
+            printf 'Your branch is already based on the latest GitHub version.\n'
+        fi
+    else
+        printf "This branch is not on GitHub yet. It will be published as '%s'.\n" "$branch"
+    fi
+
+    printf 'Step 4/4: Uploading to GitHub...\n'
+
+    if (( remote_branch_exists == 0 )); then
+        if ! git push -u "$remote" "HEAD:$branch"; then
+            cat >&2 <<EOF
+mbis save created a local save point, but could not upload it to GitHub.
+
+Your work is still saved on your computer.
+
+Check the Git message above. Then try:
+  git push -u $remote $branch
+EOF
+            return 1
+        fi
+
+        head_short="$(git rev-parse --short HEAD)"
+        printf 'Saved to GitHub. Branch: %s. Latest save: %s.\n' "$branch" "$head_short"
+        return 0
+    fi
+
+    if (( ahead > 0 )); then
+        if ! git push -u "$remote" "HEAD:$branch"; then
+            cat >&2 <<'EOF'
+mbis save created a local save point, but the upload to GitHub failed.
+
+Your work is still saved on your computer.
+
+GitHub may have changed while this command was running, or GitHub may have
+rejected the upload.
+
+A safe next step is:
+  mbis save
+EOF
+            return 1
+        fi
+
+        head_short="$(git rev-parse --short HEAD)"
+        printf 'Saved to GitHub. Branch: %s. Latest save: %s.\n' "$branch" "$head_short"
+        return 0
+    fi
+
+    # No upload needed. If tracking was missing, connect it for next time.
+    if [[ -z "$tracking" ]]; then
+        if git branch --set-upstream-to="$remote_ref" "$branch" >/dev/null 2>&1; then
+            printf "Connected this branch to GitHub branch '%s' for next time.\n" "$remote_ref"
+        fi
+    fi
+
+    if (( made_commit == 1 )); then
+        printf 'Your save point is already included after updating from GitHub. Nothing new needed to upload.\n'
+    else
+        printf 'Nothing to save. Your computer and GitHub already match.\n'
+    fi
+}
+
+version_line() {
+    local label=$1
+    shift
+    if { "$@" >/tmp/mbis_version_check.txt 2>/dev/null; } 2>/dev/null; then
+        printf "%-16s %s\n" "$label" "$(head -n 1 /tmp/mbis_version_check.txt)"
+    else
+        printf "%-16s %s\n" "$label" "not available"
+    fi
+}
+
+secret_line() {
+    local label=$1
+    local env_var=$2
+
+    if [[ -n "$(printenv "$env_var" 2>/dev/null || true)" ]]; then
+        printf "%-24s %s\n" "$label" "available"
+    else
+        printf "%-24s %s\n" "$label" "missing"
+    fi
+}
+
+cmd_doctor() {
+    local root
+    root=$(workspace_root)
+
+    echo "MBIS601 doctor"
+    echo
+    printf "%-16s %s\n" "Workspace" "$root"
+    printf "%-16s %s\n" "Codespaces" "${CODESPACES:-false}"
+    if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+        printf "%-16s %s\n" "Branch" "$(git branch --show-current 2>/dev/null || echo detached)"
+        printf "%-16s %s\n" "Remote" "$(git remote get-url origin 2>/dev/null || echo none)"
+    else
+        printf "%-16s %s\n" "Git repo" "no"
+    fi
+
+    echo
+    echo "Core tools"
+    version_line "git" git --version
+    version_line "gh" gh --version
+    version_line "python3" python3 --version
+    version_line "uv" uv --version
+    version_line "node" node --version
+    version_line "npm" npm --version
+    version_line "php" php --version
+    version_line "sqlite3" sqlite3 --version
+    version_line "ruff" ruff --version
+    version_line "playwright-cli" playwright-cli --version
+    version_line "tavily" tvly --version
+    version_line "ctx7" ctx7 --version
+
+    echo
+    echo "Agent tools"
+    version_line "copilot" copilot --version
+    version_line "gemini" gemini --version
+    version_line "opencode" opencode --version
+    version_line "pi" pi --version
+    # version_line "kilo" kilo --version
+    version_line "codex" codex --version
+    version_line "claude code" claude --version
+    # version_line "bob" bob --version
+    # if has_command vibe && vibe --help >/tmp/mbis_version_check.txt 2>/dev/null; then
+    #     printf "%-16s %s\n" "vibe" "available"
+    # else
+    #     printf "%-16s %s\n" "vibe" "not available"
+    # fi
+
+    echo
+    echo "Agent state directories"
+    for dir in \
+        "$HOME/.claude" \
+        "$HOME/.codex" \
+        "$HOME/.gemini" \
+        "$HOME/.vibe" \
+        "$HOME/.agents" \
+        "$HOME/.copilot" \
+        "$HOME/.config/opencode" \
+        "$HOME/.config/kilo"
+    do
+        if [[ -d "$dir" ]]; then
+            printf "%-32s %s\n" "$dir" "present"
+        else
+            printf "%-32s %s\n" "$dir" "missing"
+        fi
+    done
+
+    echo
+    echo "Ports"
+    if ss -ltn 2>/dev/null | grep -Eq ":${AGENTSVIEW_PORT}[[:space:]]"; then
+        printf "%-16s %s\n" "Port ${AGENTSVIEW_PORT}" "in use"
+    else
+        printf "%-16s %s\n" "Port ${AGENTSVIEW_PORT}" "free"
+    fi
+    if ss -ltn 2>/dev/null | grep -Eq ":${NODE_REACT_PORT}[[:space:]]"; then
+        printf "%-16s %s\n" "Port ${NODE_REACT_PORT}" "in use"
+    else
+        printf "%-16s %s\n" "Port ${NODE_REACT_PORT}" "free"
+    fi
+    if ss -ltn 2>/dev/null | grep -Eq ":${FASTAPI_PORT}[[:space:]]"; then
+        printf "%-16s %s\n" "Port ${FASTAPI_PORT}" "in use"
+    else
+        printf "%-16s %s\n" "Port ${FASTAPI_PORT}" "free"
+    fi
+    if ss -ltn 2>/dev/null | grep -Eq ":${PYTHON_PORT}[[:space:]]"; then
+        printf "%-16s %s\n" "Port ${PYTHON_PORT}" "in use"
+    else
+        printf "%-16s %s\n" "Port ${PYTHON_PORT}" "free"
+    fi
+    if ss -ltn 2>/dev/null | grep -Eq ":${WEB_PORT}[[:space:]]"; then
+        printf "%-16s %s\n" "Port ${WEB_PORT}" "in use"
+    else
+        printf "%-16s %s\n" "Port ${WEB_PORT}" "free"
+    fi
+    if ss -ltn 2>/dev/null | grep -Eq ":${STREAMLIT_PORT}[[:space:]]"; then
+        printf "%-16s %s\n" "Port ${STREAMLIT_PORT}" "in use"
+    else
+        printf "%-16s %s\n" "Port ${STREAMLIT_PORT}" "free"
+    fi
+
+    echo
+    echo "Authentication"
+    if gh auth status -h github.com >/tmp/mbis_gh_auth.txt 2>/dev/null; then
+        printf "%-16s %s\n" "GitHub" "authenticated"
+    else
+        printf "%-16s %s\n" "GitHub" "run \`gh auth login\` if Git or Copilot needs it"
+    fi
+
+    echo
+    echo "Codespaces secrets / environment"
+    secret_line "Anthropic API key" "ANTHROPIC_API_KEY"
+    secret_line "Claude OAuth token" "CLAUDE_CODE_OAUTH_TOKEN"
+    secret_line "Context7 API key" "CONTEXT7_API_KEY"
+    secret_line "Gemini API key" "GEMINI_API_KEY"
+    secret_line "Google GenAI key" "GOOGLE_GENERATIVE_AI_API_KEY"
+    secret_line "Mistral API key" "MISTRAL_API_KEY"
+    secret_line "NVIDIA API key" "NVIDIA_API_KEY"
+    secret_line "OpenAI API key" "OPENAI_API_KEY"
+    secret_line "OpenCode API key" "OPENCODE_API_KEY"
+    secret_line "OpenRouter API key" "OPENROUTER_API_KEY"
+    secret_line "Tavily API key" "TAVILY_API_KEY"
+
+}
+
+cmd_stop() {
+    local auto_yes=false
+    local arg
+
+    for arg in "$@"; do
+        case "$arg" in
+            --yes)
+                auto_yes=true
+                ;;
+            --help|-h)
+                cat <<'EOF'
+Usage:
+  mbis stop [--yes]
+
+Stops the current GitHub Codespace.
+
+Options:
+  --yes    Stop without asking for confirmation.
+EOF
+                return 0
+                ;;
+            *)
+                die "Unknown option for stop: $arg"
+                ;;
+        esac
+    done
+
+    if [[ "${CODESPACES:-}" != "true" || -z "${CODESPACE_NAME:-}" ]]; then
+        die "mbis stop is intended to be run inside a GitHub Codespace."
+    fi
+
+    has_command gh || die "GitHub CLI is required for mbis stop."
+
+    echo "mbis stop will stop the current Codespace: ${CODESPACE_NAME}"
+    echo "Save your work first with \`mbis save\` or regular Git commands."
+
+    if [[ "$auto_yes" != true ]]; then
+        prompt_yes_no "Stop this Codespace now?" || {
+            echo "Stop cancelled."
+            return 0
+        }
+    fi
+
+    echo "Stopping Codespace ${CODESPACE_NAME}..."
+    gh codespace stop --codespace "$CODESPACE_NAME"
+}
+
+cmd_update() {
+    local auto_yes=false
+    local full_rebuild=false
+    local arg
+
+    for arg in "$@"; do
+        case "$arg" in
+            --yes)
+                auto_yes=true
+                ;;
+            --full)
+                full_rebuild=true
+                ;;
+            --help|-h)
+                print_help
+                return 0
+                ;;
+            *)
+                die "Unknown option for update: $arg"
+                ;;
+        esac
+    done
+
+    if [[ "${CODESPACES:-}" != "true" || -z "${CODESPACE_NAME:-}" ]]; then
+        die "mbis update is intended for GitHub Codespaces. Use the Codespaces rebuild UI when running locally."
+    fi
+    has_command gh || die "GitHub CLI is required for mbis update."
+
+    echo "mbis update rebuilds the current codespace so devcontainer changes take effect."
+    echo "Save your work first with \`mbis save\` or regular Git commands."
+    if [[ "$auto_yes" != true ]]; then
+        prompt_yes_no "Continue with the rebuild?" || {
+            echo "Update cancelled."
+            return 0
+        }
+    fi
+
+    if [[ "$full_rebuild" == true ]]; then
+        gh cs rebuild --codespace "$CODESPACE_NAME" --full
+    else
+        gh cs rebuild --codespace "$CODESPACE_NAME"
+    fi
+}
+
+main() {
+    local command=${1:-help}
+    shift || true
+
+    case "$command" in
+        run)
+            cmd_run "$@"
+            ;;
+        sync)
+            cmd_sync "$@"
+            ;;
+        save)
+            cmd_save "$@"
+            ;;
+        home)
+            cmd_home "$@"
+            ;;
+        newproject)
+            cmd_newproject "$@"
+            ;;
+        doctor)
+            cmd_doctor "$@"
+            ;;
+        stop)
+            cmd_stop "$@"
+            ;;
+        update)
+            cmd_update "$@"
+            ;;
+        help|--help|-h)
+            print_help "$@"
+            ;;
+        *)
+            die "Unknown command: $command"
+            ;;
+    esac
+}
+
+main "$@"

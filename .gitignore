@@ -1,0 +1,55 @@
+# System & Python
+.DS_Store
+Thumbs.db
+Desktop.ini
+__pycache__/
+*.py[cod]
+.venv/
+.env
+.env.*
+.ruff_cache/
+.pytest_cache/
+.coverage
+
+# Build & Dependencies
+node_modules/
+vendor/
+dist/
+build/
+*.tsbuildinfo
+*.js.map
+*.d.ts.map
+*.manifest
+*.spec
+
+# Temporary & Build Files
+tmp/
+temp/
+*.tmp
+*.temp
+.python-version
+.uv/
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Codespace Setup & Tooling
+bin/
+!opt/mbis/bin/
+!opt/mbis/bin/mbis
+!opt/mbis/bin/postCreateCommand
+!opt/mbis/bin/postStartCommand
+!opt/mbis/bin/smoke-test-tools
+
+# AI / Agentic Tools
+.agents/
+.claude/
+.plans/
+.vibe/
+.codex/
+.gemini/
+.copilot/
+.config/opencode/
+.config/kilo/
+.pi/agent/
+
+# Other ignores

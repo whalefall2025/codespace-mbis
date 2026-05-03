@@ -1,0 +1,168 @@
+{
+    "name": "MBIS601 Codespace",
+    "onCreateCommand": "bash .devcontainer/setup.sh",
+    "waitFor": "onCreateCommand",
+    "postCreateCommand": "bash ./opt/mbis/bin/postCreateCommand",
+    "postStartCommand": "bash ./opt/mbis/bin/postStartCommand",
+    "remoteUser": "codespace",
+    "containerEnv": {
+        "TZ": "Pacific/Auckland"
+    },
+    "mounts": [
+        "source=mbis-agent-claude-${devcontainerId},target=/home/codespace/.claude,type=volume",
+        "source=mbis-agent-codex-${devcontainerId},target=/home/codespace/.codex,type=volume",
+        "source=mbis-agent-gemini-${devcontainerId},target=/home/codespace/.gemini,type=volume",
+        "source=mbis-agent-vibe-${devcontainerId},target=/home/codespace/.vibe,type=volume",
+        "source=mbis-agent-shared-${devcontainerId},target=/home/codespace/.agents,type=volume",
+        "source=mbis-agent-copilot-${devcontainerId},target=/home/codespace/.copilot,type=volume",
+        "source=mbis-agent-opencode-${devcontainerId},target=/home/codespace/.config/opencode,type=volume",
+        "source=mbis-agent-kilo-${devcontainerId},target=/home/codespace/.config/kilo,type=volume",
+        "source=mbis-agent-pi-${devcontainerId},target=/home/codespace/.pi,type=volume"
+    ],
+    "customizations": {
+        "vscode": {
+            "extensions": [
+                "GitHub.copilot",
+                "GitHub.copilot-chat",
+                "charliermarsh.ruff",
+                "ms-python.python",
+                "ms-python.vscode-pylance",
+                "mtxr.sqltools-driver-sqlite",
+                "mtxr.sqltools",
+                "ritwickdey.LiveServer",
+                "vsls-contrib.gitdoc"
+            ],
+            "settings": {
+                "[python]": {
+                    "editor.defaultFormatter": "charliermarsh.ruff",
+                    "editor.formatOnSave": true
+                },
+                "accessibility.signals.terminalBell": {
+                    "sound": "on"
+                },
+                "breadcrumbs.enabled": false,
+                "diffEditor.diffAlgorithm": "advanced",
+                "diffEditor.ignoreTrimWhitespace": false,
+                "editor.minimap.enabled": false,
+                "editor.renderWhitespace": "selection",
+                "editor.stickyScroll.enabled": false,
+                "editor.mouseWheelZoom": true,
+                "extensions.ignoreRecommendations": true,
+                "explorer.autoOpenDroppedFile": false,
+                "explorer.compactFolders": false,
+                "files.autoSave": "afterDelay",
+                "files.autoSaveDelay": 1000,
+                "files.exclude": {
+                    "**/.devcontainer": true,
+                    "**/.DS_Store": true,
+                    "**/.git": true,
+                    "**/.github": true,
+                    "**/Makefile": true,
+                    "**/.pytest_cache": true,
+                    "**/__pycache__": true,
+                    "**/agentsview_export": true,
+                    "etc/profile.d/codespace.sh": true,
+                    "**/opt/mbis": true,
+                    "**/node_modules": true,
+                    "**/vendor": true
+                },
+                "files.insertFinalNewline": true,
+                "files.trimTrailingWhitespace": true,
+                "files.watcherExclude": {
+                    "**/.git/objects/**": true,
+                    "**/.git/subtree-cache/**": true,
+                    "**/node_modules/*/**": true
+                },
+                "git.autofetch": true,
+                "git.decorations.enabled": false,
+                "git.terminalAuthentication": true,
+                "gitdoc.autoPull": "onPush",
+                "gitdoc.enabled": true,
+                "gitdoc.commitMessageFormat": "ccc, LLL d, kkkk, h:mm a ZZ",
+                "gitdoc.commitValidationLevel": "none",
+                "gitdoc.pullOnOpen": true,
+                "github.codespaces.devcontainerChangedNotificationStyle": "none",
+                "github.gitAuthentication": true,
+                "chat.disableAIFeatures": false,
+                "liveServer.settings.NoBrowser": true,
+                "python.defaultInterpreterPath": "/usr/local/python/3.12.1/bin/python3.12",
+                "python.terminal.executeInFileDir": true,
+                "remote.autoForwardPorts": true,
+                "remote.autoForwardPortsSource": "process",
+                "remote.portsAttributes": {
+                    "2223": {
+                        "onAutoForward": "notify",
+                        "label": "AgentsView Dashboard"
+                    },
+                    "3000": {
+                        "onAutoForward": "notify",
+                        "label": "Node/React UI"
+                    },
+                    "5000": {
+                        "onAutoForward": "notify",
+                        "label": "Flask Web Server"
+                    },
+                    "8000": {
+                        "onAutoForward": "notify",
+                        "label": "Fast API Server"
+                    },
+                    "8080": {
+                        "onAutoForward": "notify",
+                        "label": "General Web Server"
+                    },
+                    "8501": {
+                        "onAutoForward": "notify",
+                        "label": "Streamlit App"
+                    }
+                },
+                "scm.countBadge": "off",
+                "terminal.integrated.defaultProfile.linux": "bash",
+                "terminal.integrated.enableVisualBell": true,
+                "terminal.integrated.gpuAcceleration": "off",
+                "terminal.integrated.persistentSessionReviveProcess": "never",
+                "terminal.integrated.shellIntegration.decorationsEnabled": "never",
+                "terminal.integrated.shellIntegration.enabled": true,
+                "terminal.integrated.showExitAlert": false,
+                "terminal.integrated.tabs.description": "${task}${separator}${local}",
+                "terminal.integrated.tabs.showActiveTerminal": "always",
+                "window.commandCenter": false,
+                "window.autoDetectColorScheme": true,
+                "workbench.editor.closeOnFileDelete": true,
+                "workbench.editor.enablePreview": false,
+                "workbench.editor.labelFormat": "medium",
+                "workbench.iconTheme": "vs-minimal",
+                "workbench.layoutControl.enabled": true,
+                "workbench.preferredDarkColorTheme": "GitHub Dark Default",
+                "workbench.preferredLightColorTheme": "GitHub Light Default",
+                "workbench.secondarySideBar.defaultVisibility": "hidden",
+                "workbench.startupEditor": "readme",
+                "workbench.statusBar.visible": true,
+                "workbench.tips.enabled": false,
+                "workbench.welcomePage.walkthroughs.openOnInstall": false
+            }
+        }
+    },
+    "forwardPorts": [
+        2223,
+        3000,
+        5000,
+        8000,
+        8080,
+        8501
+    ],
+    "remoteEnv": {
+        "GEMINI_API_KEY": "${localEnv:GEMINI_API_KEY}",
+        "GOOGLE_GENERATIVE_AI_API_KEY": "${localEnv:GEMINI_API_KEY}",
+        "CONTEXT7_API_KEY": "${localEnv:CONTEXT7_API_KEY}",
+        "MISTRAL_API_KEY": "${localEnv:MISTRAL_API_KEY}",
+        "NVIDIA_API_KEY": "${localEnv:NVIDIA_API_KEY}",
+        "OPENCODE_API_KEY": "${localEnv:OPENCODE_API_KEY}",
+        "OPENAI_API_KEY": "${localEnv:OPENAI_API_KEY}",
+        "ANTHROPIC_API_KEY": "${localEnv:ANTHROPIC_API_KEY}",
+        "CLAUDE_CODE_OAUTH_TOKEN": "${localEnv:CLAUDE_CODE_OAUTH_TOKEN}",
+        "TAVILY_API_KEY": "${localEnv:TAVILY_API_KEY}",
+        "COURSE_NAME": "MBIS601",
+        "LOCAL_WORKSPACE_FOLDER": "${localWorkspaceFolder}",
+        "TZ": "${localEnv:TZ}"
+    }
+}

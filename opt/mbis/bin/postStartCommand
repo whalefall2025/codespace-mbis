@@ -1,0 +1,95 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+AGENTSVIEW_PORT=2223
+LOG="/tmp/mbis_post_start_command.log"
+echo -e "\n--- Startup: $(date) ---" >> "$LOG"
+
+# Remnants of CS50 Codespace for Docker services
+# sudo rm -rf /var/run/docker.sock
+# sudo /etc/init.d/docker start >> "$LOG" 2>&1 || true
+# sudo /etc/init.d/postgresql start >> "$LOG" 2>&1 || true
+
+agentsview_is_running() {
+    if command -v ss >/dev/null 2>&1; then
+        if ss -ltn 2>/dev/null | awk -v port="$AGENTSVIEW_PORT" '$1 == "LISTEN" && $4 ~ ":" port "$" { found=1 } END { exit found ? 0 : 1 }'; then
+            return 0
+        fi
+    fi
+
+    pgrep -f "agentsview serve .*--port(=|[[:space:]])${AGENTSVIEW_PORT}([[:space:]]|$)" >/dev/null 2>&1
+}
+
+start_agentsview() {
+    local pid
+
+    echo "Starting agentsview serve on port ${AGENTSVIEW_PORT}..." >> "$LOG"
+
+    # Do not run agentsview sync here.
+    # agentsview serve already runs initial sync on startup,
+    # starts the file watcher, and runs periodic sync.
+    nohup bash -c 'exec "$@"' agentsview-start \
+        agentsview serve --port "$AGENTSVIEW_PORT" --no-browser \
+        < /dev/null >> "$LOG" 2>&1 &
+
+    pid=$!
+    echo "agentsview startup pid: $pid" >> "$LOG"
+    disown "$pid" 2>/dev/null || true
+}
+
+wait_for_agentsview() {
+    local attempt
+
+    for attempt in 1 2 3 4 5; do
+        if agentsview_is_running; then
+            return 0
+        fi
+        sleep 1
+    done
+
+    return 1
+}
+
+log_agentsview_startup_failure() {
+    local recent_log
+
+    recent_log="$(tail -n 20 "$LOG" 2>/dev/null || true)"
+
+    {
+        echo "Warning: agentsview serve did not stay running on port ${AGENTSVIEW_PORT}."
+        echo "Recent postStartCommand log output:"
+        printf "%s\n" "$recent_log"
+    } >> "$LOG"
+}
+
+# Start AgentsView server if not already running
+if ! command -v agentsview >/dev/null 2>&1; then
+    echo "agentsview command not found; cannot start server." >> "$LOG"
+    exit 0
+fi
+
+if ! agentsview_is_running; then
+    start_agentsview
+
+    if wait_for_agentsview; then
+        echo "agentsview serve is running on port ${AGENTSVIEW_PORT}." >> "$LOG"
+    else
+        log_agentsview_startup_failure
+    fi
+else
+    echo "agentsview serve is already running." >> "$LOG"
+fi
+
+echo
+echo "Agentic Coding Codespace ready."
+echo "Read the README.md file carefully."
+echo ""
+echo "Run 'mbis newproject <project-name>' to create a new project."
+echo "Run 'mbis doctor' to check your setup."
+echo "Run 'mbis home' to jump back to the workspace root from anywhere if you get lost in the terminal."
+echo ""
+echo "Agent tools are preinstalled. Run one of the following commands to get started:"
+echo "  copilot, gemini, opencode, codex, claude, pi"
+echo ""
+echo "AgentsView dashboard will be available at port ${AGENTSVIEW_PORT} to monitor and manage your agents."

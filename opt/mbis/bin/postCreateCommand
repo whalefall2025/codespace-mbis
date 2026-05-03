@@ -1,0 +1,138 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+LOG="/tmp/mbis_post_create_command.log"
+echo -e "\n--- postCreateCommand: $(date) ---" >> "$LOG"
+
+# Temporarily remove ACLs so umask is respected
+# https://github.community/t/bug-umask-does-not-seem-to-be-respected/129638/10
+if [[ "${CODESPACES:-}" == "true" && -n "${RepositoryName:-}" ]]; then
+    setfacl --no-mask --recursive --remove-all "/workspaces/${RepositoryName}" || true
+fi
+
+# setfacl --no-mask --recursive --remove-all "/workspaces/$RepositoryName"
+
+if [[ -n "${CODESPACE_VSCODE_FOLDER:-}" && -d "${CODESPACE_VSCODE_FOLDER}" ]]; then
+    WORKSPACE_DIR="${CODESPACE_VSCODE_FOLDER}"
+elif [[ -n "${GITHUB_WORKSPACE:-}" && -d "${GITHUB_WORKSPACE}" ]]; then
+    WORKSPACE_DIR="${GITHUB_WORKSPACE}"
+elif [[ -n "${RepositoryName:-}" && -d "/workspaces/${RepositoryName}" ]]; then
+    WORKSPACE_DIR="/workspaces/${RepositoryName}"
+else
+    WORKSPACE_DIR="$(pwd)"
+fi
+
+append_unique_line() {
+    local file=$1
+    local line=$2
+
+    touch "$file"
+
+    if [[ -z "$line" ]]; then
+        return 0
+    fi
+
+    if ! grep -Fqx "$line" "$file" 2>/dev/null; then
+        printf "%s\n" "$line" >> "$file"
+    fi
+}
+
+install_gitignore_defaults() {
+    local gitignore_file="$1"
+    local line
+
+    while IFS= read -r line; do
+        append_unique_line "$gitignore_file" "$line"
+    done <<'EOT'
+
+# System & Python
+.DS_Store
+Thumbs.db
+Desktop.ini
+__pycache__/
+*.py[cod]
+.venv/
+.env
+.env.*
+.ruff_cache/
+.pytest_cache/
+.coverage
+
+# Build & Dependencies
+node_modules/
+vendor/
+dist/
+build/
+*.tsbuildinfo
+*.js.map
+*.d.ts.map
+*.manifest
+*.spec
+
+# Temporary & Build Files
+tmp/
+temp/
+*.tmp
+*.temp
+.python-version
+.uv/
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Codespace Setup & Tooling
+bin/
+!opt/mbis/bin/
+!opt/mbis/bin/mbis
+!opt/mbis/bin/postCreateCommand
+!opt/mbis/bin/postStartCommand
+!opt/mbis/bin/smoke-test-tools
+
+# AI / Agentic Tools
+.agents/
+.claude/
+.plans/
+.vibe/
+.codex/
+.gemini/
+.copilot/
+.config/opencode/
+.config/kilo/
+.pi/agent/
+
+# Other ignores
+EOT
+}
+
+# Install minimal .gitignore defaults without overwriting existing repository customizations.
+install_gitignore_defaults "$WORKSPACE_DIR/.gitignore"
+
+# Restore AgentsView DB from repo export if it exists, so the user can pick up where they left off.
+AGENTSVIEW_DATA_DIR="${AGENTSVIEW_DATA_DIR:-${AGENT_VIEWER_DATA_DIR:-$HOME/.agentsview}}"
+
+RESTORE_SRC="$WORKSPACE_DIR/agentsview_export/sessions.db"
+RESTORE_DEST="$AGENTSVIEW_DATA_DIR/sessions.db"
+
+mkdir -p "$AGENTSVIEW_DATA_DIR"
+
+if [[ -f "$RESTORE_DEST" ]]; then
+    echo "Existing AgentsView DB found at $RESTORE_DEST; not restoring from repo." >> "$LOG"
+    exit 0
+fi
+
+if [[ ! -f "$RESTORE_SRC" ]]; then
+    echo "No exported AgentsView DB found at $RESTORE_SRC; fresh start." >> "$LOG"
+    exit 0
+fi
+
+echo "Restoring AgentsView DB from $RESTORE_SRC to $RESTORE_DEST" >> "$LOG"
+
+if command -v sqlite3 >/dev/null 2>&1; then
+    TMP_DB="$(mktemp "$AGENTSVIEW_DATA_DIR/sessions.db.restore.XXXXXX")"
+    sqlite3 "$RESTORE_SRC" ".backup '$TMP_DB'"
+    mv "$TMP_DB" "$RESTORE_DEST"
+else
+    cp "$RESTORE_SRC" "$RESTORE_DEST"
+fi
+
+echo "AgentsView DB restore complete." >> "$LOG"

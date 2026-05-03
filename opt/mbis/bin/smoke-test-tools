@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+mbis help >/dev/null
+mbis doctor >/tmp/mbis-doctor.txt
+
+claude --version >/tmp/claude-version.txt
+claude --help >/tmp/claude-help.txt
+
+codex --version >/tmp/codex-version.txt
+codex --help >/tmp/codex-help.txt
+
+copilot --version >/tmp/copilot-version.txt
+copilot --help >/tmp/copilot-help.txt
+
+gemini --version >/tmp/gemini-version.txt
+gemini --help >/tmp/gemini-help.txt
+
+opencode --version >/tmp/opencode-version.txt
+opencode --help >/tmp/opencode-help.txt
+
+kilo --version >/tmp/kilo-version.txt
+kilo --help >/tmp/kilo-help.txt
+
+pi --version >/tmp/pi-version.txt
+pi --help >/tmp/pi-help.txt
+
+vibe --help >/tmp/vibe-help.txt
+
+echo "Smoke tests passed."
