@@ -328,31 +328,7 @@ install_skills() {
         cp -r "$skills_src"/*/ "$target/" 2>/dev/null || true
     done
 
-    # Install Ctx7 skills via CLI for global availability
     npm install -g skills@latest
-    npm install -g ctx7@latest
-
-    ctx7_api_key_args=()
-    if [ -n "${CONTEXT7_API_KEY:-}" ]; then
-        ctx7_api_key_args=(--api-key "$CONTEXT7_API_KEY")
-    else
-        echo "⚠ CONTEXT7_API_KEY is not set; installing Context7 without an API key."
-        echo "  After adding the secret, reload the Codespace and rerun setup if needed."
-    fi
-
-    ctx7 setup --cli --universal --yes "${ctx7_api_key_args[@]}" || true
-    ctx7 setup --cli --claude --yes "${ctx7_api_key_args[@]}" || true
-    ctx7 setup --cli --antigravity --yes "${ctx7_api_key_args[@]}" || true
-    echo "✓ Context7 CLI setup complete for global, Claude, and Antigravity scopes"
-
-    # Copy ctx7 skills to all agent skill directories
-    if [ -d "$HOME/.claude/skills/find-docs" ]; then
-        cp -r "$HOME/.claude/skills/find-docs" "$HOME/.agents/skills/"
-        cp -r "$HOME/.claude/skills/find-docs" "$HOME/.vibe/skills/"
-        echo "✓ Context7 skill copied to ~/.agents/skills/ and ~/.vibe/skills/ for Claude, CoPilot, Gemini-CLI and Mistral Vibe"
-    else
-        echo "⚠ Warning: Context7 skill not found at .claude/skills/find-docs; skipping global skill copy"
-    fi
 
     npx skills add https://github.com/tavily-ai/skills --skill '*' -g -a claude-code -a gemini-cli -a codex -a mistral-vibe -a opencode -a kilo -a github-copilot --copy --yes
 

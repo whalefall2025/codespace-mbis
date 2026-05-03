@@ -146,7 +146,7 @@ Beyond the five-skill workflow above, these skills are also available as slash c
 Two further capabilities need an API key (sign in with GitHub at the provider's site):
 
 - **Tavily** for web search inside an agent — <https://docs.tavily.com/documentation/tavily-cli>
-- **Context7** for fetching official library documentation — <https://context7.com/>
+- **Context7** for fetching official library documentation.  First create an API key at <https://context7.com/dashboard>. Add it to the Codespace secrets setting at <https://github.com/settings/codespaces> as `CONTEXT7_API_KEY`.  The codespace will ask you to reload - click yes.  Then, run `mbis context7` to install this skill.  
 
 You're welcome to install more skills, but only from reputable sources.
 
