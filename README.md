@@ -106,7 +106,7 @@ Six agents are pre-installed. Type the command name into the terminal **from ins
 Inside any agent:
 
 - A **Plan mode** lets you discuss what to do before any files change. A **Build mode** lets the agent edit files. You switch modes with a slash command (e.g. `/plan`) or, in OpenCode, with `Tab`.
-- Use `/model` to list the models available and switch from one model to the other.  You can also set the thinking efforts used by the model.  Low effort consumes less tokens and is faster, and High (and for some xHigh) consumes lots of tokens, is slower, but more powerful.  
+- Use `/model` to list the models available and switch from one model to the other.  You can also set the thinking efforts used by the model.  Low effort consumes less tokens and is faster, and High (and for some xHigh) consumes lots of tokens, is slower, but more powerful.
 - `/help` lists what the agent can do. `/exit` (or `/quit`) closes it.
 
 For details on which provider/key each tool needs, see [providers-and-models.md](providers-and-models.md).
@@ -162,7 +162,7 @@ Beyond the five-skill workflow above, these skills are also available as slash c
 Two further capabilities need an API key (sign in with GitHub at the provider's site):
 
 - **Tavily** for web search inside an agent — <https://docs.tavily.com/documentation/tavily-cli>
-- **Context7** for fetching official library documentation.  First create an API key at <https://context7.com/dashboard>. Add it to the Codespace secrets setting at <https://github.com/settings/codespaces> as `CONTEXT7_API_KEY`.  The codespace will ask you to reload - click yes.  Then, run `mbis context7` to install this skill.  
+- **Context7** for fetching official library documentation.  First create an API key at <https://context7.com/dashboard>. Add it to the Codespace secrets setting at <https://github.com/settings/codespaces> as `CONTEXT7_API_KEY`.  The codespace will ask you to reload - click yes.  Then, run `mbis context7` to install this skill.
 
 You're welcome to install more skills, but only from reputable sources.
 
